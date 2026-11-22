@@ -112,6 +112,7 @@ def hoja_contingencia(df):
     tablas.append(("Probabilidad de sismo fuerte por región", p_fuerte))
 
     per = pd.crosstab(df["periodo"], df["categoria"], margins=True, margins_name="Total")
+    per = per.reindex(columns=[c for c in orden_cat if c in per.columns] + ["Total"])
     tablas.append(("Frecuencias: periodo × categoría", per.reset_index()))
     return tablas
 
@@ -199,7 +200,12 @@ def hoja_poisson(diario):
         for _, r in top.iterrows():
             k = int(r["sismos"])
             p_cola = 1 - sum(poisson(i, lam_antes) for i in range(k))
-            filas.append([r["fecha"].date(), k, f"{p_cola:.3e}"])
+            if p_cola > 1e-15:
+                texto = f"{p_cola:.3e}"
+            else:  # demasiado pequeña para calcularla directo: se usa el logaritmo de P(X = k)
+                log10_p = (-lam_antes + k * math.log(lam_antes) - math.lgamma(k + 1)) / math.log(10)
+                texto = f"≈ 10^{math.floor(log10_p)}"
+            filas.append([r["fecha"].date(), k, texto])
         tablas.append((f"Días con más sismos: ¿qué tan probables eran con la λ normal ({lam_antes:.3f}/día)?",
                        pd.DataFrame(filas, columns=["Fecha", "Sismos", "P(X >= k) con λ de antes"])))
     return tablas
